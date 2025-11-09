@@ -4,9 +4,11 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Windows.Forms; // Für NotifyIcon
+using System.Drawing;       // Für SystemIcons
 
 class Program
 {
+    [STAThread] // Wichtig für Windows Forms
     static async Task Main(string[] args)
     {
         // Damit NotifyIcon funktioniert, brauchen wir eine MessageLoop
@@ -15,7 +17,7 @@ class Program
 
         NotifyIcon trayIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Information,
+            Icon = SystemIcons.Information, // Jetzt funktioniert es
             Visible = true
         };
 
