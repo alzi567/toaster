@@ -1,8 +1,9 @@
 ﻿using System;
 using System.IO;
 using System.Net;
-using System.Text;
 using System.Net.Sockets;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Drawing;
@@ -11,10 +12,10 @@ using System.Drawing;
 
 class Program
 {
-    /// <summary>
-    /// Global port number for the application.
-    /// </summary>
-    public static int PortNumber { get; set; } = 56555; // Default value
+    public static int PortNumber { get; set; } = 56555; // Global Port
+
+    private static NotifyIcon trayIcon;
+    private static SynchronizationContext? uiContext;
 
     [STAThread]
     static async Task Main(string[] args)
@@ -22,21 +23,41 @@ class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
-        int port = PortNumber;
-        TcpListener listener = new TcpListener(IPAddress.Any, port);
-        listener.Start();
-        Console.WriteLine($"Listening on port {port}...");
+        // UI-Thread SynchronizationContext speichern
+        uiContext = SynchronizationContext.Current;
 
-        _ = Task.Run(async () =>
+        // Tray-Icon erstellen
+        trayIcon = new NotifyIcon
         {
-            while (true)
-            {
-                TcpClient client = await listener.AcceptTcpClientAsync();
-                _ = HandleClientAsync(client); // Fire-and-forget
-            }
+            Icon = SystemIcons.Information,
+            Text = "TCP Tray Listener",
+            Visible = true,
+            ContextMenuStrip = new ContextMenuStrip()
+        };
+        trayIcon.ContextMenuStrip.Items.Add("Beenden", null, (s, e) =>
+        {
+            trayIcon.Visible = false;
+            Application.Exit();
         });
 
+        // TCP-Listener starten (parallel)
+        _ = Task.Run(() => StartTcpListenerAsync());
+
+        // Message Loop starten
         Application.Run();
+    }
+
+    private static async Task StartTcpListenerAsync()
+    {
+        TcpListener listener = new TcpListener(IPAddress.Any, PortNumber);
+        listener.Start();
+        Console.WriteLine($"Listening on port {PortNumber}...");
+
+        while (true)
+        {
+            TcpClient client = await listener.AcceptTcpClientAsync();
+            _ = HandleClientAsync(client); // Fire-and-forget
+        }
     }
 
     private static async Task HandleClientAsync(TcpClient client)
@@ -46,37 +67,29 @@ class Program
         using (NetworkStream stream = client.GetStream())
         using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
         using (StreamWriter writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true })
-
         {
-            NotifyIcon trayIcon = new NotifyIcon
-            {
-                Icon = SystemIcons.Information,
-                Visible = true
-            };
-
             string? line;
             while ((line = await reader.ReadLineAsync()) != null)
             {
                 Console.WriteLine($"Received: {line}");
-                await writer.WriteLineAsync($"Echo: {line}"); // Optional response
+                await writer.WriteLineAsync($"Echo: {line}");
 
                 var command = ParseInput(line);
                 if (command.HasValue)
                 {
-                    Console.WriteLine($"- Icon: {command.Value.Icon}");
-                    Console.WriteLine($"- Title: {command.Value.Title}");
-                    Console.WriteLine($"- Message: {command.Value.Message}");
-
-                    // Map integer to ToolTipIcon
                     ToolTipIcon icon = command.Value.Icon switch
                     {
                         1 => ToolTipIcon.Info,
                         2 => ToolTipIcon.Warning,
                         3 => ToolTipIcon.Error,
-                        _ => ToolTipIcon.None // fallback for invalid values
+                        _ => ToolTipIcon.None
                     };
 
-                    trayIcon.ShowBalloonTip(5000, command.Value.Title, command.Value.Message, icon);
+                    // UI-Aufruf sicher auf den UI-Thread marshallen
+                    uiContext?.Post(_ =>
+                    {
+                        trayIcon.ShowBalloonTip(5000, command.Value.Title, command.Value.Message, icon);
+                    }, null);
                 }
                 else
                 {
@@ -87,39 +100,23 @@ class Program
         Console.WriteLine("Client disconnected.");
     }
 
-
     /// <summary>
     /// Parses an input string into three components: a number, a title, and a message.
     /// </summary>
-    /// <param name="input">
-    /// The input string in the format: "number|title|message".
-    /// </param>
-    /// <returns>
-    /// A tuple (Number, Title, Message) if parsing succeeds and the number is in the range 1–3;
-    /// otherwise, returns <c>null</c>.
-    /// </returns>
-    /// <remarks>
-    /// - The input must contain exactly three parts separated by a pipe ('|').
-    /// - The first part must be an integer between 1 and 3.
-    /// </remarks>
     public static (int Icon, string Title, string Message)? ParseInput(string input)
     {
         if (string.IsNullOrWhiteSpace(input))
             return null;
 
         string[] parts = input.Split('|');
-
         if (parts.Length != 3)
             return null;
 
         if (int.TryParse(parts[0], out int number) && number >= 1 && number <= 3)
         {
-            string title = parts[1];
-            string message = parts[2];
-            return (number, title, message);
+            return (number, parts[1], parts[2]);
         }
 
-        return null; // Invalid number or format
+        return null;
     }
-
 }
