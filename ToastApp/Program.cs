@@ -1,10 +1,13 @@
 ﻿using System;
 using System.IO;
 using System.Net;
+using System.Text;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Drawing;
+
+#nullable enable
 
 class Program
 {
@@ -19,22 +22,20 @@ class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
-        NotifyIcon trayIcon = new NotifyIcon
-        {
-            Icon = SystemIcons.Information,
-            Visible = true
-        };
-
         int port = PortNumber;
         TcpListener listener = new TcpListener(IPAddress.Any, port);
         listener.Start();
         Console.WriteLine($"Listening on port {port}...");
 
-        while (true)
+        _ = Task.Run(async () =>
         {
-            TcpClient client = await listener.AcceptTcpClientAsync();
-            _ = HandleClientAsync(client); // Fire-and-forget
-        }
+            while (true)
+            {
+                TcpClient client = await listener.AcceptTcpClientAsync();
+                _ = HandleClientAsync(client); // Fire-and-forget
+            }
+        });
+
         Application.Run();
     }
 
@@ -45,7 +46,14 @@ class Program
         using (NetworkStream stream = client.GetStream())
         using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
         using (StreamWriter writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true })
+
         {
+            NotifyIcon trayIcon = new NotifyIcon
+            {
+                Icon = SystemIcons.Information,
+                Visible = true
+            };
+
             string? line;
             while ((line = await reader.ReadLineAsync()) != null)
             {
@@ -60,7 +68,7 @@ class Program
                     Console.WriteLine($"- Message: {command.Value.Message}");
 
                     // Map integer to ToolTipIcon
-                    ToolTipIcon icon = result.Value.Icon switch
+                    ToolTipIcon icon = command.Value.Icon switch
                     {
                         1 => ToolTipIcon.Info,
                         2 => ToolTipIcon.Warning,
@@ -68,7 +76,7 @@ class Program
                         _ => ToolTipIcon.None // fallback for invalid values
                     };
 
-                    trayIcon.ShowBalloonTip(5000, result.Value.Title, result.Value.Message, icon);
+                    trayIcon.ShowBalloonTip(5000, command.Value.Title, command.Value.Message, icon);
                 }
                 else
                 {
@@ -114,48 +122,4 @@ class Program
         return null; // Invalid number or format
     }
 
-}
-
-
-using System;
-using System.Net;
-using System.Net.Sockets;
-using System.IO;
-using System.Text;
-using System.Threading.Tasks;
-
-/// das hat Copilot ausgespuckt, damit der Server mehrere Clients korrekt empfangen/handlen kann
-class Program1
-{
-    static async Task Main()
-    {
-        int port = 56555;
-        TcpListener listener = new TcpListener(IPAddress.Any, port);
-        listener.Start();
-        Console.WriteLine($"Listening on port {port} (all interfaces)...");
-
-        while (true)
-        {
-            TcpClient client = await listener.AcceptTcpClientAsync();
-            _ = HandleClientAsync(client); // Fire-and-forget
-        }
-    }
-
-    private static async Task HandleClientAsync(TcpClient client)
-    {
-        Console.WriteLine($"Client connected: {client.Client.RemoteEndPoint}");
-        using (client)
-        using (NetworkStream stream = client.GetStream())
-        using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
-        using (StreamWriter writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true })
-        {
-            string? line;
-            while ((line = await reader.ReadLineAsync()) != null)
-            {
-                Console.WriteLine($"Received: {line}");
-                await writer.WriteLineAsync($"Echo: {line}"); // Optional response
-            }
-        }
-        Console.WriteLine("Client disconnected.");
-    }
 }
