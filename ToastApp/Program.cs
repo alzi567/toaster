@@ -26,49 +26,59 @@ class Program
         };
 
         int port = PortNumber;
-        Console.WriteLine($"Listening on port {port}...");
         TcpListener listener = new TcpListener(IPAddress.Any, port);
         listener.Start();
+        Console.WriteLine($"Listening on port {port}...");
 
-        _ = Task.Run(async () =>
+        while (true)
         {
-            while (true)
-            {
-                var client = await listener.AcceptTcpClientAsync();
-                using var reader = new StreamReader(client.GetStream());
-                string message;
-                while ((message = await reader.ReadLineAsync()) != null)
-                {
-                    var result = ParseInput(message);
-
-                    Console.WriteLine($"Received: {message}");
-                    if (result.HasValue)
-                    {
-                        Console.WriteLine($"- Icon: {result.Value.Icon}");
-                        Console.WriteLine($"- Title: {result.Value.Title}");
-                        Console.WriteLine($"- Message: {result.Value.Message}");
-
-                        // Map integer to ToolTipIcon
-                        ToolTipIcon icon = result.Value.Icon switch
-                        {
-                            1 => ToolTipIcon.Info,
-                            2 => ToolTipIcon.Warning,
-                            3 => ToolTipIcon.Error,
-                            _ => ToolTipIcon.None // fallback for invalid values
-                        };
-
-                        trayIcon.ShowBalloonTip(5000, result.Value.Title, result.Value.Message, icon);
-                    }
-                    else
-                    {
-                        Console.WriteLine("Invalid input format or number out of range.");
-                    }
-                }
-            }
-        });
-
+            TcpClient client = await listener.AcceptTcpClientAsync();
+            _ = HandleClientAsync(client); // Fire-and-forget
+        }
         Application.Run();
     }
+
+    private static async Task HandleClientAsync(TcpClient client)
+    {
+        Console.WriteLine($"Client connected: {client.Client.RemoteEndPoint}");
+        using (client)
+        using (NetworkStream stream = client.GetStream())
+        using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+        using (StreamWriter writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true })
+        {
+            string? line;
+            while ((line = await reader.ReadLineAsync()) != null)
+            {
+                Console.WriteLine($"Received: {line}");
+                await writer.WriteLineAsync($"Echo: {line}"); // Optional response
+
+                var command = ParseInput(line);
+                if (command.HasValue)
+                {
+                    Console.WriteLine($"- Icon: {command.Value.Icon}");
+                    Console.WriteLine($"- Title: {command.Value.Title}");
+                    Console.WriteLine($"- Message: {command.Value.Message}");
+
+                    // Map integer to ToolTipIcon
+                    ToolTipIcon icon = result.Value.Icon switch
+                    {
+                        1 => ToolTipIcon.Info,
+                        2 => ToolTipIcon.Warning,
+                        3 => ToolTipIcon.Error,
+                        _ => ToolTipIcon.None // fallback for invalid values
+                    };
+
+                    trayIcon.ShowBalloonTip(5000, result.Value.Title, result.Value.Message, icon);
+                }
+                else
+                {
+                    Console.WriteLine("Invalid input format or number out of range.");
+                }
+            }
+        }
+        Console.WriteLine("Client disconnected.");
+    }
+
 
     /// <summary>
     /// Parses an input string into three components: a number, a title, and a message.
@@ -104,4 +114,48 @@ class Program
         return null; // Invalid number or format
     }
 
+}
+
+
+using System;
+using System.Net;
+using System.Net.Sockets;
+using System.IO;
+using System.Text;
+using System.Threading.Tasks;
+
+/// das hat Copilot ausgespuckt, damit der Server mehrere Clients korrekt empfangen/handlen kann
+class Program1
+{
+    static async Task Main()
+    {
+        int port = 56555;
+        TcpListener listener = new TcpListener(IPAddress.Any, port);
+        listener.Start();
+        Console.WriteLine($"Listening on port {port} (all interfaces)...");
+
+        while (true)
+        {
+            TcpClient client = await listener.AcceptTcpClientAsync();
+            _ = HandleClientAsync(client); // Fire-and-forget
+        }
+    }
+
+    private static async Task HandleClientAsync(TcpClient client)
+    {
+        Console.WriteLine($"Client connected: {client.Client.RemoteEndPoint}");
+        using (client)
+        using (NetworkStream stream = client.GetStream())
+        using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+        using (StreamWriter writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true })
+        {
+            string? line;
+            while ((line = await reader.ReadLineAsync()) != null)
+            {
+                Console.WriteLine($"Received: {line}");
+                await writer.WriteLineAsync($"Echo: {line}"); // Optional response
+            }
+        }
+        Console.WriteLine("Client disconnected.");
+    }
 }
