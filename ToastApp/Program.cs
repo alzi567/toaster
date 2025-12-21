@@ -47,8 +47,8 @@ internal sealed class TrayAppContext : ApplicationContext
         };
         _trayIcon.ContextMenuStrip.Items.Add("Exit", null, (_, __) => ExitApplication());
 
-        // Optional: show a startup balloon (requires a message loop already running)
-        _trayIcon.ShowBalloonTip(2000, "Eck Listener", "Listening service starting…", ToolTipIcon.Info);
+        // // Optional: show a startup balloon (requires a message loop already running)
+        // _trayIcon.ShowBalloonTip(2000, "Eck Listener", "Listening service starting…", ToolTipIcon.Info);
 
         // Start the listener (do not await)
         _listenerTask = StartTcpListenerAsync(_cts.Token);
@@ -83,9 +83,9 @@ internal sealed class TrayAppContext : ApplicationContext
         var listener = new TcpListener(IPAddress.Any, PortNumber);
         listener.Start();
 
-        // Optional: update tray that we’re listening
-        _uiContext.Post(_ => _trayIcon.ShowBalloonTip(2000, "Eck Listener",
-            $"Listening on port {PortNumber}", ToolTipIcon.Info), null);
+        // // Optional: update tray that we’re listening
+        // _uiContext.Post(_ => _trayIcon.ShowBalloonTip(2000, "Eck Listener",
+        //     $"Listening on port {PortNumber}", ToolTipIcon.Info), null);
 
         try
         {
@@ -113,9 +113,9 @@ internal sealed class TrayAppContext : ApplicationContext
         using (var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true })
         {
             // Notify connection on UI
-            _uiContext.Post(_ =>
-                _trayIcon.ShowBalloonTip(1000, "Client connected",
-                    client.Client.RemoteEndPoint?.ToString() ?? "(unknown)", ToolTipIcon.Info), null);
+            // _uiContext.Post(_ =>
+            //     _trayIcon.ShowBalloonTip(1000, "Client connected",
+            //         client.Client.RemoteEndPoint?.ToString() ?? "(unknown)", ToolTipIcon.Info), null);
 
             Log("Alex was here");
 
@@ -158,9 +158,9 @@ internal sealed class TrayAppContext : ApplicationContext
                 }
             }
 
-            _uiContext.Post(_ =>
-                _trayIcon.ShowBalloonTip(1000, "Client disconnected",
-                    client.Client.RemoteEndPoint?.ToString() ?? "(unknown)", ToolTipIcon.None), null);
+            // _uiContext.Post(_ =>
+            //     _trayIcon.ShowBalloonTip(1000, "Client disconnected",
+            //         client.Client.RemoteEndPoint?.ToString() ?? "(unknown)", ToolTipIcon.None), null);
         }
 
         // Avoid Thread.Sleep in async code
@@ -173,7 +173,7 @@ internal sealed class TrayAppContext : ApplicationContext
 
         var parts = input.Split('|');
         if (parts.Length != 3) {
-            Log("error parsing reveiced message (no 3 pipe-separated text parts found), input=" + input)
+            Log("error parsing reveiced message (no 3 pipe-separated text parts found), input=" + input);
             return null;
         }
 

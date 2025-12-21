@@ -95,3 +95,16 @@ File.WriteAllText(Path.Combine(Path.GetTempPath(), "EckListener.pid"), Environme
 // Stop script:
 // powershell: $pid = Get-Content "$env:TEMP\EckListener.pid"; Stop-Process -Id $pid -Force
 ```
+
+### Testen mit Send.ps1
+
+```
+# Standard: Icon 1 (Info)
+.\send.ps1 -Title "Ein Test" -Message "Hello from PowerShell! Do you see me? It's Alex!"
+
+# Warning-Icon 2
+.\send.ps1 -Icon 2 -Title "Achtung" -Message "Dies ist eine Warnung."
+
+# Gegen einen anderen Host/Port
+.\send.ps1 -Host 10.10.10.65 -Port 56555 -Title "Ping" -Message "Test 123"
+```
