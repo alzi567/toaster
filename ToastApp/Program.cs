@@ -64,6 +64,20 @@ internal sealed class TrayAppContext : ApplicationContext
         }, TaskScheduler.Default);
     }
 
+    private static readonly string LogFile = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "EckListener", "listener.log");
+
+    private static void Log(string msg)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(LogFile)!);
+        var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {msg}";
+        Console.WriteLine(line);
+        File.AppendAllText(LogFile, line + Environment.NewLine, Encoding.UTF8);
+    }
+
+
+
     private async Task StartTcpListenerAsync(CancellationToken token)
     {
         var listener = new TcpListener(IPAddress.Any, PortNumber);
@@ -103,13 +117,18 @@ internal sealed class TrayAppContext : ApplicationContext
                 _trayIcon.ShowBalloonTip(1000, "Client connected",
                     client.Client.RemoteEndPoint?.ToString() ?? "(unknown)", ToolTipIcon.Info), null);
 
+            Log("Alex was here");
+
             string? line;
             while (!token.IsCancellationRequested &&
                    (line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)
             {
+                Log("irgendetwas empfangen ...");
                 await writer.WriteLineAsync($"Echo: {line}").ConfigureAwait(false);
 
+                Log(" line=" + line);
                 var command = ParseInput(line);
+                Log(" command=" + command);
                 if (command.HasValue)
                 {
                     var icon = command.Value.Icon switch
@@ -119,6 +138,7 @@ internal sealed class TrayAppContext : ApplicationContext
                         3 => ToolTipIcon.Error,
                         _ => ToolTipIcon.None
                     };
+                    Log("und zwar message=" + command.Value.Message);
 
                     _uiContext.Post(_ =>
                         _trayIcon.ShowBalloonTip(
@@ -126,6 +146,15 @@ internal sealed class TrayAppContext : ApplicationContext
                             command.Value.Title,
                             command.Value.Message,
                             icon), null);
+                } else {
+                    Log("nix gescheites empfangen ...");
+                    _uiContext.Post(_ =>
+                        _trayIcon.ShowBalloonTip(
+                            1000,
+                            "OJE",
+                            "Oje, nix konnte gelesen werden ...",
+                            ToolTipIcon.Error), null);
+
                 }
             }
 
@@ -143,7 +172,10 @@ internal sealed class TrayAppContext : ApplicationContext
         if (string.IsNullOrWhiteSpace(input)) return null;
 
         var parts = input.Split('|');
-        if (parts.Length != 3) return null;
+        if (parts.Length != 3) {
+            Log("error parsing reveiced message (no 3 pipe-separated text parts found), input=" + input)
+            return null;
+        }
 
         if (int.TryParse(parts[0], out int number) && number is >= 1 and <= 3)
         {
@@ -186,3 +218,6 @@ internal sealed class TrayAppContext : ApplicationContext
         base.Dispose(disposing);
     }
 }
+
+
+

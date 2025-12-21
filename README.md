@@ -78,3 +78,20 @@ Beispiel:
 ```
 msg = "1|Bildschirmzeit|Nur noch 2 Minuten verbleibend."
 ```
+
+
+### Build self-contained exe
+
+
+```
+dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true
+# EXE will be in: bin\Release\net8.0-windows\win-x64\publish\YourApp.exe
+```
+
+### Use PID file (PID file for easy shutdown from scripts)
+
+```
+File.WriteAllText(Path.Combine(Path.GetTempPath(), "EckListener.pid"), Environment.ProcessId.ToString());
+// Stop script:
+// powershell: $pid = Get-Content "$env:TEMP\EckListener.pid"; Stop-Process -Id $pid -Force
+```
