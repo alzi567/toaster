@@ -17,6 +17,14 @@ class Program
     private static NotifyIcon trayIcon;
     private static SynchronizationContext? uiContext;
 
+
+    // Ensure non-null static field
+    static Program()
+    {
+        trayIcon = new NotifyIcon();
+    }
+
+
     [STAThread]
     static async Task Main(string[] args)
     {
@@ -27,21 +35,20 @@ class Program
         uiContext = SynchronizationContext.Current;
 
         // Tray-Icon erstellen
-        trayIcon = new NotifyIcon
-        {
-            Icon = SystemIcons.Information,
-            Text = "TCP Tray Listener",
-            Visible = true,
-            ContextMenuStrip = new ContextMenuStrip()
-        };
-        trayIcon.ContextMenuStrip.Items.Add("Beenden", null, (s, e) =>
+        trayIcon.Icon = SystemIcons.Information;
+        trayIcon.Text = "Eck Listener";
+        trayIcon.Visible = true;
+        trayIcon.ContextMenuStrip = new ContextMenuStrip();
+        trayIcon.ContextMenuStrip.Items.Add("Exit", null, (s, e) =>
         {
             trayIcon.Visible = false;
             Application.Exit();
         });
 
+
+        trayIcon.ShowBalloonTip(1000, "Test", "Programmstart", ToolTipIcon.Info);
         // TCP-Listener starten (parallel)
-        _ = Task.Run(() => StartTcpListenerAsync());
+        await Task.Run(() => StartTcpListenerAsync());
 
         // Message Loop starten
         Application.Run();
@@ -63,6 +70,14 @@ class Program
     private static async Task HandleClientAsync(TcpClient client)
     {
         Console.WriteLine($"Client connected: {client.Client.RemoteEndPoint}");
+        trayIcon.ShowBalloonTip(1000, "Test", "Ui Task-Start", ToolTipIcon.Info);
+        Thread.Sleep(5000);
+        trayIcon.ShowBalloonTip(1000, "Test2", "Noch ein Ui Task-Start", ToolTipIcon.Info);
+        uiContext?.Post(_ =>
+        {
+            trayIcon.ShowBalloonTip(5000, "Test 3", "Der DRITTE Ui Task-Start", ToolTipIcon.Info);
+        }, null);
+
         using (client)
         using (NetworkStream stream = client.GetStream())
         using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))

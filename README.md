@@ -34,7 +34,14 @@ ToastNotificationManagerCompat.RegisterApplicationId("TcpToastApp");
 
 ```
 dotnet build
+dotnet build -c Release
 dotnet run
+```
+
+Bzw. self-contained (eine einzige exe, keine .net-Runtime auf Zielsystem noetig):
+
+```
+dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true
 ```
 
 

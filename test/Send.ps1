@@ -1,0 +1,7 @@
+$client = New-Object System.Net.Sockets.TcpClient("10.10.10.130", 56555)
+$stream = $client.GetStream()
+$writer = New-Object System.IO.StreamWriter($stream)
+$writer.WriteLine("Hello from PowerShell!")
+$writer.Flush()
+$writer.Close()
+$client.Close()
