@@ -1,4 +1,5 @@
-﻿using System;
+﻿
+using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -10,89 +11,108 @@ using System.Drawing;
 
 #nullable enable
 
-class Program
+internal static class Program
 {
-    public static int PortNumber { get; set; } = 56555; // Global Port
-
-    private static NotifyIcon trayIcon;
-    private static SynchronizationContext? uiContext;
-
-
-    // Ensure non-null static field
-    static Program()
-    {
-        trayIcon = new NotifyIcon();
-    }
-
-
     [STAThread]
-    static async Task Main(string[] args)
+    private static void Main()
     {
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
-        // UI-Thread SynchronizationContext speichern
-        uiContext = SynchronizationContext.Current;
+        // Run the tray app with an ApplicationContext
+        Application.Run(new TrayAppContext());
+    }
+}
 
-        // Tray-Icon erstellen
-        trayIcon.Icon = SystemIcons.Information;
-        trayIcon.Text = "Eck Listener";
-        trayIcon.Visible = true;
-        trayIcon.ContextMenuStrip = new ContextMenuStrip();
-        trayIcon.ContextMenuStrip.Items.Add("Exit", null, (s, e) =>
+internal sealed class TrayAppContext : ApplicationContext
+{
+    private readonly NotifyIcon _trayIcon;
+    private readonly CancellationTokenSource _cts = new();
+    private readonly SynchronizationContext _uiContext;
+    private Task? _listenerTask;
+
+    public static int PortNumber { get; set; } = 56555;
+
+    public TrayAppContext()
+    {
+        _uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
+
+        // Create tray icon and context menu
+        _trayIcon = new NotifyIcon
         {
-            trayIcon.Visible = false;
-            Application.Exit();
-        });
+            Icon = SystemIcons.Information,
+            Text = "Eck Listener",
+            Visible = true,
+            ContextMenuStrip = new ContextMenuStrip()
+        };
+        _trayIcon.ContextMenuStrip.Items.Add("Exit", null, (_, __) => ExitApplication());
 
+        // Optional: show a startup balloon (requires a message loop already running)
+        _trayIcon.ShowBalloonTip(2000, "Eck Listener", "Listening service starting…", ToolTipIcon.Info);
 
-        trayIcon.ShowBalloonTip(1000, "Test", "Programmstart", ToolTipIcon.Info);
-        // TCP-Listener starten (parallel)
-        await Task.Run(() => StartTcpListenerAsync());
-
-        // Message Loop starten
-        Application.Run();
+        // Start the listener (do not await)
+        _listenerTask = StartTcpListenerAsync(_cts.Token);
+        _listenerTask.ContinueWith(t =>
+        {
+            if (t.Exception != null)
+            {
+                // Report error to user via tray balloon (on UI thread)
+                _uiContext.Post(_ =>
+                    _trayIcon.ShowBalloonTip(5000, "Eck Listener Error",
+                        t.Exception.GetBaseException().Message, ToolTipIcon.Error), null);
+            }
+        }, TaskScheduler.Default);
     }
 
-    private static async Task StartTcpListenerAsync()
+    private async Task StartTcpListenerAsync(CancellationToken token)
     {
-        TcpListener listener = new TcpListener(IPAddress.Any, PortNumber);
+        var listener = new TcpListener(IPAddress.Any, PortNumber);
         listener.Start();
-        Console.WriteLine($"Listening on port {PortNumber}...");
 
-        while (true)
+        // Optional: update tray that we’re listening
+        _uiContext.Post(_ => _trayIcon.ShowBalloonTip(2000, "Eck Listener",
+            $"Listening on port {PortNumber}", ToolTipIcon.Info), null);
+
+        try
         {
-            TcpClient client = await listener.AcceptTcpClientAsync();
-            _ = HandleClientAsync(client); // Fire-and-forget
+            while (!token.IsCancellationRequested)
+            {
+                var client = await listener.AcceptTcpClientAsync(token).ConfigureAwait(false);
+                _ = HandleClientAsync(client, token); // fire-and-forget
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // normal during shutdown
+        }
+        finally
+        {
+            try { listener.Stop(); } catch { /* ignore */ }
         }
     }
 
-    private static async Task HandleClientAsync(TcpClient client)
+    private async Task HandleClientAsync(TcpClient client, CancellationToken token)
     {
-        Console.WriteLine($"Client connected: {client.Client.RemoteEndPoint}");
-        trayIcon.ShowBalloonTip(1000, "Test", "Ui Task-Start", ToolTipIcon.Info);
-        Thread.Sleep(5000);
-        trayIcon.ShowBalloonTip(1000, "Test2", "Noch ein Ui Task-Start", ToolTipIcon.Info);
-        uiContext?.Post(_ =>
-        {
-            trayIcon.ShowBalloonTip(5000, "Test 3", "Der DRITTE Ui Task-Start", ToolTipIcon.Info);
-        }, null);
-
         using (client)
-        using (NetworkStream stream = client.GetStream())
-        using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
-        using (StreamWriter writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true })
+        using (var stream = client.GetStream())
+        using (var reader = new StreamReader(stream, Encoding.UTF8))
+        using (var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true })
         {
+            // Notify connection on UI
+            _uiContext.Post(_ =>
+                _trayIcon.ShowBalloonTip(1000, "Client connected",
+                    client.Client.RemoteEndPoint?.ToString() ?? "(unknown)", ToolTipIcon.Info), null);
+
             string? line;
-            while ((line = await reader.ReadLineAsync()) != null)
+            while (!token.IsCancellationRequested &&
+                   (line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)
             {
-                Console.WriteLine($"Received: {line}");
-                await writer.WriteLineAsync($"Echo: {line}");
+                await writer.WriteLineAsync($"Echo: {line}").ConfigureAwait(false);
 
                 var command = ParseInput(line);
                 if (command.HasValue)
                 {
-                    ToolTipIcon icon = command.Value.Icon switch
+                    var icon = command.Value.Icon switch
                     {
                         1 => ToolTipIcon.Info,
                         2 => ToolTipIcon.Warning,
@@ -100,38 +120,69 @@ class Program
                         _ => ToolTipIcon.None
                     };
 
-                    // UI-Aufruf sicher auf den UI-Thread marshallen
-                    uiContext?.Post(_ =>
-                    {
-                        trayIcon.ShowBalloonTip(5000, command.Value.Title, command.Value.Message, icon);
-                    }, null);
-                }
-                else
-                {
-                    Console.WriteLine("Invalid input format or number out of range.");
+                    _uiContext.Post(_ =>
+                        _trayIcon.ShowBalloonTip(
+                            5000,
+                            command.Value.Title,
+                            command.Value.Message,
+                            icon), null);
                 }
             }
+
+            _uiContext.Post(_ =>
+                _trayIcon.ShowBalloonTip(1000, "Client disconnected",
+                    client.Client.RemoteEndPoint?.ToString() ?? "(unknown)", ToolTipIcon.None), null);
         }
-        Console.WriteLine("Client disconnected.");
+
+        // Avoid Thread.Sleep in async code
+        // If you need pauses, use: await Task.Delay(5000, token);
     }
 
-    /// <summary>
-    /// Parses an input string into three components: a number, a title, and a message.
-    /// </summary>
     public static (int Icon, string Title, string Message)? ParseInput(string input)
     {
-        if (string.IsNullOrWhiteSpace(input))
-            return null;
+        if (string.IsNullOrWhiteSpace(input)) return null;
 
-        string[] parts = input.Split('|');
-        if (parts.Length != 3)
-            return null;
+        var parts = input.Split('|');
+        if (parts.Length != 3) return null;
 
-        if (int.TryParse(parts[0], out int number) && number >= 1 && number <= 3)
+        if (int.TryParse(parts[0], out int number) && number is >= 1 and <= 3)
         {
             return (number, parts[1], parts[2]);
         }
-
         return null;
+    }
+
+    private async void ExitApplication()
+    {
+        try
+        {
+            _cts.Cancel();
+
+            if (_listenerTask is not null)
+            {
+                // give the listener a moment to shut down
+                var delayTask = Task.Delay(1500);
+                await Task.WhenAny(_listenerTask, delayTask);
+            }
+        }
+        catch { /* ignore */ }
+        finally
+        {
+            _trayIcon.Visible = false;
+            _trayIcon.Dispose();
+            ExitThread(); // closes the ApplicationContext -> Application.Run returns
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _cts.Cancel();
+            _trayIcon.Visible = false;
+            _trayIcon.Dispose();
+            _cts.Dispose();
+        }
+        base.Dispose(disposing);
     }
 }
