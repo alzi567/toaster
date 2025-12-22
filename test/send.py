@@ -87,7 +87,7 @@ def send_and_expect(
 @click.option('--port', '-p', default=56555, show_default=True, type=int,
               help='Ziel-Port.')
 @click.option('--icon', '-i', default=1, show_default=True,
-              type=click.Choice(['1', '2', '3'], case_sensitive=False),
+              type=click.IntRange(1, 3),
               help='Icon-Code: 1=Info, 2=Warning, 3=Error.')
 @click.option('--title', '-t', required=True, help='Titel-Text.')
 @click.option('--message', '-m', required=True, help='Nachrichten-Text.')

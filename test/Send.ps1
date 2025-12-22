@@ -1,39 +1,34 @@
 
 param(
-    [string] $Host = "10.10.10.65",
-    [int]    $Port = 56555,
+    [string] $Server = "10.10.10.65",
+    [int]    $Port   = 56555,
 
     [ValidateSet(1,2,3)]
     [int]    $Icon = 1,
 
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [string] $Title,
 
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [string] $Message
 )
 
 # TCP-Verbindung herstellen
-$client = [System.Net.Sockets.TcpClient]::new($Host, $Port)
+$client = [System.Net.Sockets.TcpClient]::new($Server, $Port)
 try {
-    $stream = $client.GetStream()
-
-    # UTF-8 StreamWriter mit AutoFlush
-    $encoding = [System.Text.Encoding]::UTF8
-    $writer   = [System.IO.StreamWriter]::new($stream, $encoding)
+    $stream  = $client.GetStream()
+    $writer  = [System.IO.StreamWriter]::new($stream, [System.Text.Encoding]::UTF8)
     $writer.AutoFlush = $true
 
-    # Protokoll: "ICON|TITLE|MESSAGE"
+    # Protokoll "ICON|TITLE|MESSAGE"
     $line = "{0}|{1}|{2}" -f $Icon, $Title, $Message
 
-    # Senden (WriteLine hängt \r\n automatisch an)
+    # WriteLine fügt \r\n selbst an – kein \n am Ende nötig
     $writer.WriteLine($line)
 
-    # Optional: eine Bestätigungszeile ausgeben
-    Write-Host ("Gesendet an {0}:{1} -> {2}" -f $Host, $Port, $line)
+    Write-Host ("Gesendet an {0}:{1} -> {2}" -f $Server, $Port, $line)
 }
 finally {
-    # Aufräumen
     if ($writer) { $writer.Dispose() }
     if ($stream) { $stream.Dispose() }
     $client.Close()
