@@ -177,7 +177,7 @@ internal sealed class TrayAppContext : ApplicationContext
             return null;
         }
 
-        if (int.TryParse(parts[0], out int number) && number is >= 1 and <= 3)
+        if (int.TryParse(parts[0], out int number) && number is >= 0 and <= 3)
         {
             return (number, parts[1], parts[2]);
         }

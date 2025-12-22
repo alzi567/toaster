@@ -50,11 +50,11 @@ def send_and_expect(
     liest eine Antwortzeile und prüft auf Gleichheit mit 'expected'
     (oder dem gesendeten Payload, falls expected None).
     """
-    if icon not in (1, 2, 3):
-        raise click.BadParameter("Icon muss 1, 2 oder 3 sein.")
+    if icon not in (0, 1, 2, 3):
+        raise click.BadParameter("Icon muss 0, 1, 2 oder 3 sein.")
 
     payload = f"{icon}|{title}|{message}"
-    data = (payload + "\r\n").encode("utf-8")
+    data = (payload + "\n").encode("utf-8")
 
     with socket.create_connection((server, port), timeout=timeout) as sock:
         if timeout is not None:
@@ -87,8 +87,8 @@ def send_and_expect(
 @click.option('--port', '-p', default=56555, show_default=True, type=int,
               help='Ziel-Port.')
 @click.option('--icon', '-i', default=1, show_default=True,
-              type=click.IntRange(1, 3),
-              help='Icon-Code: 1=Info, 2=Warning, 3=Error.')
+              type=click.IntRange(0, 3),
+              help='Icon-Code: 0=None, 1=Info, 2=Warning, 3=Error.')
 @click.option('--title', '-t', required=True, help='Titel-Text.')
 @click.option('--message', '-m', required=True, help='Nachrichten-Text.')
 @click.option('--timeout', default=5.0, show_default=True, type=float,
