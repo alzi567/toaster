@@ -110,7 +110,8 @@ internal sealed class TrayAppContext : ApplicationContext
         using (client)
         using (var stream = client.GetStream())
         using (var reader = new StreamReader(stream, Encoding.UTF8))
-        using (var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true })
+        // using (var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true })
+        using (var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)) { AutoFlush = true })
         {
             // Notify connection on UI
             // _uiContext.Post(_ =>

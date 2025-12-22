@@ -1,9 +1,9 @@
-
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import socket
 import click
+
 
 def recv_line(sock: socket.socket, max_bytes: int = 65536) -> str:
     """
@@ -18,15 +18,19 @@ def recv_line(sock: socket.socket, max_bytes: int = 65536) -> str:
         try:
             b = sock.recv(1)
         except socket.timeout as ex:
-            raise click.ClickException(f"Timeout beim Warten auf die Antwort: {ex}") from ex
+            raise click.ClickException(
+                f"Timeout beim Warten auf die Antwort: {ex}"
+            ) from ex
 
         if not b:
             # Server hat Verbindung geschlossen, bevor '\n' kam
             break
 
         chunks += b
-        if b == b'\n':
+        if b == b"\n":
             break
+
+    print(f"received raw: {chunks.hex()}")
 
     # CRLF/ LF normalisieren
     text = chunks.decode("utf-8", errors="replace")
@@ -36,6 +40,7 @@ def recv_line(sock: socket.socket, max_bytes: int = 65536) -> str:
         text = text[:-1]
     return text
 
+
 def send_and_expect(
     server: str,
     port: int,
@@ -43,7 +48,7 @@ def send_and_expect(
     title: str,
     message: str,
     timeout: float | None,
-    expected: str | None
+    expected: str | None,
 ) -> bool:
     """
     Stellt Verbindung her, sendet 'icon|title|message' (UTF-8, CRLF),
@@ -55,7 +60,7 @@ def send_and_expect(
 
     payload = f"{icon}|{title}|{message}"
     data = (payload + "\n").encode("utf-8")
-
+    
     with socket.create_connection((server, port), timeout=timeout) as sock:
         if timeout is not None:
             sock.settimeout(timeout)
@@ -65,38 +70,78 @@ def send_and_expect(
         while total_sent < len(data):
             sent = sock.send(data[total_sent:])
             if sent == 0:
-                raise click.ClickException("Socket-Verbindung unterbrochen während des Sendens.")
+                raise click.ClickException(
+                    "Socket-Verbindung unterbrochen während des Sendens."
+                )
             total_sent += sent
 
         # Antwort lesen (eine Zeile)
         response = recv_line(sock)
 
     # Erwartung festlegen
-    expected_text = payload if expected is None else expected
+    expected_text = f"Echo: {payload}" if expected is None else expected
 
-    ok = (response == expected_text)
+    ok = response == expected_text
+    
+    
+    response_hex = response.encode("utf-8").hex()
+    expected_hex = expected_text.encode("utf-8").hex()
+    click.echo(f"expected: {expected_hex}")
+    click.echo(f"received: {response_hex}")
+
+    
+    
     if ok:
-        click.echo(f"OK: Echo stimmt überein.\n  gesendet : {payload}\n  empfangen: {response}")
+        click.echo(
+            f"OK: Echo stimmt überein.\n  gesendet : {payload}\n  empfangen: {response}"
+        )
     else:
-        click.echo(f"FEHLER: Echo weicht ab.\n  gesendet : {payload}\n  empfangen: {response}\n  erwartet : {expected_text}", err=True)
+        click.echo(
+            f"FEHLER: Echo weicht ab.\n  gesendet : {payload}\n  empfangen: {response}\n  erwartet : {expected_text}",
+            err=True,
+        )
     return ok
 
-@click.command(context_settings=dict(help_option_names=['-h', '--help']))
-@click.option('--server', '-s', default='10.10.10.65', show_default=True,
-              help='Ziel-Host/IP.')
-@click.option('--port', '-p', default=56555, show_default=True, type=int,
-              help='Ziel-Port.')
-@click.option('--icon', '-i', default=1, show_default=True,
-              type=click.IntRange(0, 3),
-              help='Icon-Code: 0=None, 1=Info, 2=Warning, 3=Error.')
-@click.option('--title', '-t', required=True, help='Titel-Text.')
-@click.option('--message', '-m', required=True, help='Nachrichten-Text.')
-@click.option('--timeout', default=5.0, show_default=True, type=float,
-              help='Verbindungs-/Antwort-Timeout (Sekunden).')
-@click.option('--expect', default=None,
-              help='Erwartete Antwort für die Echo-Prüfung. '
-                   'Standard: exakt der gesendete Payload "icon|title|message".')
-def cli(server: str, port: int, icon: str, title: str, message: str, timeout: float, expect: str | None):
+
+@click.command(context_settings=dict(help_option_names=["-h", "--help"]))
+@click.option(
+    "--server", "-s", default="10.10.10.65", show_default=True, help="Ziel-Host/IP."
+)
+@click.option(
+    "--port", "-p", default=56555, show_default=True, type=int, help="Ziel-Port."
+)
+@click.option(
+    "--icon",
+    "-i",
+    default=1,
+    show_default=True,
+    type=click.IntRange(0, 3),
+    help="Icon-Code: 0=None, 1=Info, 2=Warning, 3=Error.",
+)
+@click.option("--title", "-t", required=True, help="Titel-Text.")
+@click.option("--message", "-m", required=True, help="Nachrichten-Text.")
+@click.option(
+    "--timeout",
+    default=5.0,
+    show_default=True,
+    type=float,
+    help="Verbindungs-/Antwort-Timeout (Sekunden).",
+)
+@click.option(
+    "--expect",
+    default=None,
+    help="Erwartete Antwort für die Echo-Prüfung. "
+    'Standard: exakt der gesendete Payload "icon|title|message".',
+)
+def cli(
+    server: str,
+    port: int,
+    icon: str,
+    title: str,
+    message: str,
+    timeout: float,
+    expect: str | None,
+):
     """
     Sende 'ICON|TITLE|MESSAGE' (UTF-8, CRLF) an den Listener, warte auf eine Antwortzeile
     und prüfe, ob die Rückgabe dem Erwartungswert entspricht (standardmäßig identisch zum Payload).
@@ -109,7 +154,7 @@ def cli(server: str, port: int, icon: str, title: str, message: str, timeout: fl
             title=title,
             message=message,
             timeout=timeout,
-            expected=expect
+            expected=expect,
         )
         # Exitcode 0 bei Erfolg, 1 bei Abweichung
         raise SystemExit(0 if ok else 1)
@@ -120,5 +165,6 @@ def cli(server: str, port: int, icon: str, title: str, message: str, timeout: fl
         # Unerwartete Fehler sauber melden
         raise click.ClickException(str(ex)) from ex
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     cli()
