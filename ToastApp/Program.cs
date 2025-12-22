@@ -37,11 +37,22 @@ internal sealed class TrayAppContext : ApplicationContext
     {
         _uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
 
+
+       // Get current process executable path (works in single-file and normal)
+        string exePath = Environment.ProcessPath!;
+
+        // Extract the associated icon from the EXE (this reads the <ApplicationIcon>)
+        using Icon associated = Icon.ExtractAssociatedIcon(exePath)!;
+
+        // Scale to the system small icon size (tray prefers 16x16; handles high DPI properly)
+        Icon trayIco = new Icon(associated, SystemInformation.SmallIconSize);
+
+
         // Create tray icon and context menu
         _trayIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Information,
-            Text = "Eck Listener",
+            Icon = trayIco,
+            Text = "Toaster",
             Visible = true,
             ContextMenuStrip = new ContextMenuStrip()
         };
