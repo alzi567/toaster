@@ -24,7 +24,7 @@ using Microsoft.Toolkit.Uwp.Notifications;
 
 ### App-ID registrieren
 
-Damit Toasts funktionieren, fuee vor Main() ein:
+Damit Toasts funktionieren, fuege vor Main() ein:
 
 ```
 ToastNotificationManagerCompat.RegisterApplicationId("TcpToastApp");
@@ -116,3 +116,4 @@ File.WriteAllText(Path.Combine(Path.GetTempPath(), "EckListener.pid"), Environme
 # Gegen einen anderen Host/Port
 .\send.ps1 -Host 10.10.10.65 -Port 56555 -Title "Ping" -Message "Test 123"
 ```
+
