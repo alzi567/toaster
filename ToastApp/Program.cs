@@ -37,7 +37,6 @@ internal sealed class TrayAppContext : ApplicationContext
     {
         _uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
 
-
        // Get current process executable path (works in single-file and normal)
         string exePath = Environment.ProcessPath!;
 
@@ -46,7 +45,6 @@ internal sealed class TrayAppContext : ApplicationContext
 
         // Scale to the system small icon size (tray prefers 16x16; handles high DPI properly)
         Icon trayIco = new Icon(associated, SystemInformation.SmallIconSize);
-
 
         // Create tray icon and context menu
         _trayIcon = new NotifyIcon
@@ -133,7 +131,7 @@ internal sealed class TrayAppContext : ApplicationContext
 
             string? line;
             while (!token.IsCancellationRequested &&
-                   (line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)
+                (line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)
             {
                 Log("irgendetwas empfangen ...");
                 await writer.WriteLineAsync($"Echo: {line}").ConfigureAwait(false);

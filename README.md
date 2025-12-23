@@ -88,6 +88,14 @@ dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=
 # EXE will be in: bin\Release\net8.0-windows\win-x64\publish\YourApp.exe
 ```
 
+**Update:** die Settings wurden in `ToastApp.csproj` angepasst, sodass man diese Optionen nicht mehr extra angegben muss. Es reicht ein:
+
+```
+dotnet publish -c Release
+```
+
+... dann wird in bin\Release\net9.0-windows\win-x64\publish\ das Binary `ToastApp.exe` entstehen, das alle Libs inkludiert und als einfaches Exe weitergegeben werden kann.
+
 ### Use PID file (PID file for easy shutdown from scripts)
 
 ```
