@@ -1,7 +1,6 @@
 ﻿
 using System;
 using System.IO;
-using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -14,7 +13,6 @@ using System.Diagnostics; // für FileVersionInfo
 
 internal static class Program
 {
-    
     private static string GetAppVersion()
     {
         // robust: funktioniert für normale Builds und Single-File-Bundles
@@ -49,15 +47,20 @@ internal sealed class TrayAppContext : ApplicationContext
     private readonly NotifyIcon _trayIcon;
     private readonly CancellationTokenSource _cts = new();
     private readonly SynchronizationContext _uiContext;
-    private Task? _listenerTask;
+    private Task? _clientTask;
 
+    // ==== Client-Konfiguration ====
+    public static string ServerHost { get; set; } = "10.10.10.65";
     public static int PortNumber { get; set; } = 56555;
+    public static int ReconnectDelayMs { get; set; } = 2000;
+    public static bool SendAck { get; set; } = false;
+    public static string AckText { get; set; } = "OK";
 
     public TrayAppContext()
     {
         _uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
 
-       // Get current process executable path (works in single-file and normal)
+        // Get current process executable path (works in single-file and normal)
         string exePath = Environment.ProcessPath!;
 
         // Extract the associated icon from the EXE (this reads the <ApplicationIcon>)
@@ -70,24 +73,24 @@ internal sealed class TrayAppContext : ApplicationContext
         _trayIcon = new NotifyIcon
         {
             Icon = trayIco,
-            Text = "Toaster",
+            Text = "Toaster", // optional: $"Toaster (Client) {ServerHost}:{PortNumber}"
             Visible = true,
             ContextMenuStrip = new ContextMenuStrip()
         };
         _trayIcon.ContextMenuStrip.Items.Add("Exit", null, (_, __) => ExitApplication());
 
-        // // Optional: show a startup balloon (requires a message loop already running)
-        // _trayIcon.ShowBalloonTip(2000, "Eck Listener", "Listening service starting…", ToolTipIcon.Info);
+        // Optionaler Start-Hinweis
+        // _trayIcon.ShowBalloonTip(2000, "Toaster Client", $"Verbinde zu {ServerHost}:{PortNumber}…", ToolTipIcon.Info);
 
-        // Start the listener (do not await)
-        _listenerTask = StartTcpListenerAsync(_cts.Token);
-        _listenerTask.ContinueWith(t =>
+        // Starte den TCP-Client-Loop (nicht awaiten)
+        _clientTask = StartTcpClientLoopAsync(_cts.Token);
+        _clientTask.ContinueWith(t =>
         {
             if (t.Exception != null)
             {
-                // Report error to user via tray balloon (on UI thread)
+                // Fehler als Tray-Balloon melden (auf UI-Thread)
                 _uiContext.Post(_ =>
-                    _trayIcon.ShowBalloonTip(5000, "Eck Listener Error",
+                    _trayIcon.ShowBalloonTip(5000, "Toaster Client Fehler",
                         t.Exception.GetBaseException().Message, ToolTipIcon.Error), null);
             }
         }, TaskScheduler.Default);
@@ -105,96 +108,114 @@ internal sealed class TrayAppContext : ApplicationContext
         File.AppendAllText(LogFile, line + Environment.NewLine, Encoding.UTF8);
     }
 
-
-
-    private async Task StartTcpListenerAsync(CancellationToken token)
+    // ==== NEU: Client-Schleife ====
+    private async Task StartTcpClientLoopAsync(CancellationToken token)
     {
-        var listener = new TcpListener(IPAddress.Any, PortNumber);
-        listener.Start();
-
-        // // Optional: update tray that we’re listening
-        // _uiContext.Post(_ => _trayIcon.ShowBalloonTip(2000, "Eck Listener",
-        //     $"Listening on port {PortNumber}", ToolTipIcon.Info), null);
-
-        try
+        while (!token.IsCancellationRequested)
         {
-            while (!token.IsCancellationRequested)
+            TcpClient? client = null;
+            try
             {
-                var client = await listener.AcceptTcpClientAsync(token).ConfigureAwait(false);
-                _ = HandleClientAsync(client, token); // fire-and-forget
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // normal during shutdown
-        }
-        finally
-        {
-            try { listener.Stop(); } catch { /* ignore */ }
-        }
-    }
+                Log($"Verbinde zu {ServerHost}:{PortNumber} …");
+                client = new TcpClient();
+                // Hinweis: In .NET 6 gibt es kein ConnectAsync mit CancellationToken für TcpClient.
+                await client.ConnectAsync(ServerHost, PortNumber).ConfigureAwait(false);
+                Log("Verbunden.");
 
-    private async Task HandleClientAsync(TcpClient client, CancellationToken token)
-    {
-        using (client)
-        using (var stream = client.GetStream())
-        using (var reader = new StreamReader(stream, Encoding.UTF8))
-        // using (var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true })
-        using (var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)) { AutoFlush = true })
-        {
-            // Notify connection on UI
-            // _uiContext.Post(_ =>
-            //     _trayIcon.ShowBalloonTip(1000, "Client connected",
-            //         client.Client.RemoteEndPoint?.ToString() ?? "(unknown)", ToolTipIcon.Info), null);
-
-            Log("Alex was here");
-
-            string? line;
-            while (!token.IsCancellationRequested &&
-                (line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)
-            {
-                Log("irgendetwas empfangen ...");
-                await writer.WriteLineAsync($"Echo: {line}").ConfigureAwait(false);
-
-                Log(" line=" + line);
-                var command = ParseInput(line);
-                Log(" command=" + command);
-                if (command.HasValue)
+                using (client)
+                using (var stream = client.GetStream())
+                using (var reader = new StreamReader(stream, Encoding.UTF8))
+                using (var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)) { AutoFlush = true })
                 {
-                    var icon = command.Value.Icon switch
+                    // Optional: kleinen Hinweis im Tray
+                    _uiContext.Post(_ =>
+                        _trayIcon.ShowBalloonTip(1500, "Verbunden",
+                            $"{ServerHost}:{PortNumber}", ToolTipIcon.Info), null);
+
+                    string? line;
+                    while (!token.IsCancellationRequested &&
+                           (line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)
                     {
-                        1 => ToolTipIcon.Info,
-                        2 => ToolTipIcon.Warning,
-                        3 => ToolTipIcon.Error,
-                        _ => ToolTipIcon.None
-                    };
-                    Log("und zwar message=" + command.Value.Message);
+                        Log($"Empfangen: {line}");
 
-                    _uiContext.Post(_ =>
-                        _trayIcon.ShowBalloonTip(
-                            5000,
-                            command.Value.Title,
-                            command.Value.Message,
-                            icon), null);
-                } else {
-                    Log("nix gescheites empfangen ...");
-                    _uiContext.Post(_ =>
-                        _trayIcon.ShowBalloonTip(
-                            1000,
-                            "OJE",
-                            "Oje, nix konnte gelesen werden ...",
-                            ToolTipIcon.Error), null);
+                        var command = ParseInput(line);
+                        if (command.HasValue)
+                        {
+                            var icon = command.Value.Icon switch
+                            {
+                                1 => ToolTipIcon.Info,
+                                2 => ToolTipIcon.Warning,
+                                3 => ToolTipIcon.Error,
+                                _ => ToolTipIcon.None
+                            };
 
+                            _uiContext.Post(_ =>
+                                _trayIcon.ShowBalloonTip(
+                                    5000,
+                                    command.Value.Title,
+                                    command.Value.Message,
+                                    icon), null);
+
+                            if (SendAck)
+                            {
+                                try
+                                {
+                                    await writer.WriteLineAsync(AckText).ConfigureAwait(false);
+                                    Log($"ACK gesendet: {AckText}");
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log($"Fehler beim ACK-Senden: {ex.Message}");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            Log("Ungültige Zeile – kein 3-teiliger Pipe-String.");
+                            _uiContext.Post(_ =>
+                                _trayIcon.ShowBalloonTip(
+                                    1500, "Ungültige Nachricht",
+                                    "Erwartet: ICON|TITLE|MESSAGE",
+                                    ToolTipIcon.Warning), null);
+                        }
+                    }
+
+                    Log("Server hat die Verbindung geschlossen.");
+                    _uiContext.Post(_ =>
+                        _trayIcon.ShowBalloonTip(1500, "Getrennt",
+                            "Server hat beendet oder Verbindung verloren.", ToolTipIcon.None), null);
                 }
             }
+            catch (OperationCanceledException)
+            {
+                // Normal während Shutdown
+                break;
+            }
+            catch (Exception ex)
+            {
+                Log($"Verbindungs-/Lese-Fehler: {ex.Message}");
+                _uiContext.Post(_ =>
+                    _trayIcon.ShowBalloonTip(3000, "Verbindungsfehler",
+                        ex.Message, ToolTipIcon.Error), null);
+            }
+            finally
+            {
+                try { client?.Close(); } catch { /* ignore */ }
+            }
 
-            // _uiContext.Post(_ =>
-            //     _trayIcon.ShowBalloonTip(1000, "Client disconnected",
-            //         client.Client.RemoteEndPoint?.ToString() ?? "(unknown)", ToolTipIcon.None), null);
+            // Reconnect-Delay
+            if (!token.IsCancellationRequested)
+            {
+                Log($"Erneuter Verbindungsversuch in {ReconnectDelayMs} ms …");
+                try
+                {
+                    await Task.Delay(ReconnectDelayMs, token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) { break; }
+            }
         }
 
-        // Avoid Thread.Sleep in async code
-        // If you need pauses, use: await Task.Delay(5000, token);
+        Log("Client-Schleife beendet.");
     }
 
     public static (int Icon, string Title, string Message)? ParseInput(string input)
@@ -203,7 +224,7 @@ internal sealed class TrayAppContext : ApplicationContext
 
         var parts = input.Split('|');
         if (parts.Length != 3) {
-            Log("error parsing reveiced message (no 3 pipe-separated text parts found), input=" + input);
+            Log("error parsing received message (no 3 pipe-separated text parts found), input=" + input);
             return null;
         }
 
@@ -220,11 +241,11 @@ internal sealed class TrayAppContext : ApplicationContext
         {
             _cts.Cancel();
 
-            if (_listenerTask is not null)
+            if (_clientTask is not null)
             {
-                // give the listener a moment to shut down
+                // der Schleife kurz Zeit zum sauberen Ende geben
                 var delayTask = Task.Delay(1500);
-                await Task.WhenAny(_listenerTask, delayTask);
+                await Task.WhenAny(_clientTask, delayTask);
             }
         }
         catch { /* ignore */ }
@@ -248,6 +269,3 @@ internal sealed class TrayAppContext : ApplicationContext
         base.Dispose(disposing);
     }
 }
-
-
-
