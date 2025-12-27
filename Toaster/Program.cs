@@ -8,18 +8,38 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Drawing;
+using System.Diagnostics; // für FileVersionInfo
 
 #nullable enable
 
 internal static class Program
 {
+    
+    private static string GetAppVersion()
+    {
+        // robust: funktioniert für normale Builds und Single-File-Bundles
+        string exePath = Environment.ProcessPath!;
+        var fvi = FileVersionInfo.GetVersionInfo(exePath);
+
+        // Bevorzugt: ProductVersion (aus AssemblyInformationalVersion),
+        // Fallback: FileVersion
+        string version = !string.IsNullOrWhiteSpace(fvi.ProductVersion)
+            ? fvi.ProductVersion
+            : (fvi.FileVersion ?? "unknown");
+
+        return version;
+    }
+
     [STAThread]
     private static void Main()
     {
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
-        // Run the tray app with an ApplicationContext
+        // >>> Version beim Start ausgeben
+        string version = GetAppVersion();
+        Console.WriteLine($"Toaster v{version}");
+
         Application.Run(new TrayAppContext());
     }
 }
