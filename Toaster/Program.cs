@@ -99,7 +99,7 @@ internal sealed class TrayAppContext : ApplicationContext
 
     private static readonly string LogFile = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "EckListener", "listener.log");
+        "Toaster", "listener.log");
 
     private static void Log(string msg)
     {
@@ -238,6 +238,7 @@ internal sealed class TrayAppContext : ApplicationContext
 
     private async void ExitApplication()
     {
+        Log("Toaster wird beendet.");
         try
         {
             _cts.Cancel();
