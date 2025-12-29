@@ -89,6 +89,7 @@ internal sealed class TrayAppContext : ApplicationContext
             if (t.Exception != null)
             {
                 // Fehler als Tray-Balloon melden (auf UI-Thread)
+                Log($"Toaster Client Fehler: {t.Exception.GetBaseException().Message}");
                 _uiContext.Post(_ =>
                     _trayIcon.ShowBalloonTip(5000, "Toaster Client Fehler",
                         t.Exception.GetBaseException().Message, ToolTipIcon.Error), null);
@@ -128,9 +129,9 @@ internal sealed class TrayAppContext : ApplicationContext
                 using (var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)) { AutoFlush = true })
                 {
                     // Optional: kleinen Hinweis im Tray
-                    _uiContext.Post(_ =>
-                        _trayIcon.ShowBalloonTip(1500, "Verbunden",
-                            $"{ServerHost}:{PortNumber}", ToolTipIcon.Info), null);
+                    // _uiContext.Post(_ =>
+                    //     _trayIcon.ShowBalloonTip(1500, "Verbunden",
+                    //         $"{ServerHost}:{PortNumber}", ToolTipIcon.Info), null);
 
                     string? line;
                     while (!token.IsCancellationRequested &&
@@ -181,9 +182,9 @@ internal sealed class TrayAppContext : ApplicationContext
                     }
 
                     Log("Server hat die Verbindung geschlossen.");
-                    _uiContext.Post(_ =>
-                        _trayIcon.ShowBalloonTip(1500, "Getrennt",
-                            "Server hat beendet oder Verbindung verloren.", ToolTipIcon.None), null);
+                    // _uiContext.Post(_ =>
+                    //     _trayIcon.ShowBalloonTip(1500, "Getrennt",
+                    //         "Server hat beendet oder Verbindung verloren.", ToolTipIcon.None), null);
                 }
             }
             catch (OperationCanceledException)
@@ -194,9 +195,9 @@ internal sealed class TrayAppContext : ApplicationContext
             catch (Exception ex)
             {
                 Log($"Verbindungs-/Lese-Fehler: {ex.Message}");
-                _uiContext.Post(_ =>
-                    _trayIcon.ShowBalloonTip(3000, "Verbindungsfehler",
-                        ex.Message, ToolTipIcon.Error), null);
+                // _uiContext.Post(_ =>
+                //     _trayIcon.ShowBalloonTip(3000, "Verbindungsfehler",
+                //         ex.Message, ToolTipIcon.Error), null);
             }
             finally
             {
