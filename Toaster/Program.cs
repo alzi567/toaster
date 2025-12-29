@@ -50,7 +50,7 @@ internal sealed class TrayAppContext : ApplicationContext
     private Task? _clientTask;
 
     // ==== Client-Konfiguration ====
-    public static string ServerHost { get; set; } = "10.10.10.65";
+    public static string ServerHost { get; set; } = "10.10.10.1";
     public static int PortNumber { get; set; } = 56555;
     public static int ReconnectDelayMs { get; set; } = 2000;
     public static bool SendAck { get; set; } = false;
