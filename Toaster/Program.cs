@@ -13,19 +13,27 @@ using System.Diagnostics; // für FileVersionInfo
 
 internal static class Program
 {
-    private static string GetAppVersion()
+    public static string GetAppVersion()
     {
-        // robust: funktioniert für normale Builds und Single-File-Bundles
         string exePath = Environment.ProcessPath!;
         var fvi = FileVersionInfo.GetVersionInfo(exePath);
 
-        // Bevorzugt: ProductVersion (aus AssemblyInformationalVersion),
-        // Fallback: FileVersion
-        string version = !string.IsNullOrWhiteSpace(fvi.ProductVersion)
+        string fullVersionString = !string.IsNullOrWhiteSpace(fvi.ProductVersion)
             ? fvi.ProductVersion
             : (fvi.FileVersion ?? "unknown");
 
-        return version;
+        // Check if the version string contains build metadata (indicated by '+')
+        int plusIndex = fullVersionString.IndexOf('+');
+        if (plusIndex != -1)
+        {
+            // If it does, take only the part before the '+'
+            return fullVersionString.Substring(0, plusIndex);
+        }
+        else
+        {
+            // Otherwise, return the full string as is
+            return fullVersionString;
+        }
     }
 
     [STAThread]
@@ -77,6 +85,20 @@ internal sealed class TrayAppContext : ApplicationContext
             Visible = true,
             ContextMenuStrip = new ContextMenuStrip()
         };
+
+        // also show the version as static string
+        String appVersion = Program.GetAppVersion();
+        ToolStripMenuItem versionText = new()
+        {
+            // 2. Set its Text property to your desired static text
+            Text =  $"Toaster v{appVersion}",
+            
+            // 3. (Optional) You might want to disable it if it's purely informational
+            Enabled = false
+        };
+
+        // 4. Add the item to your ContextMenuStrip's Items collection
+        _trayIcon.ContextMenuStrip.Items.Add(versionText);
         _trayIcon.ContextMenuStrip.Items.Add("Exit", null, (_, __) => ExitApplication());
 
         // Optionaler Start-Hinweis

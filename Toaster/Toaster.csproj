@@ -1,5 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <Version>1.1.0</Version>
     <OutputType>WinExe</OutputType>
     <ApplicationIcon>toaster.ico</ApplicationIcon>
     <TargetFramework>net9.0-windows</TargetFramework>
