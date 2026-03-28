@@ -1,0 +1,53 @@
+name: .NET Build on Tag Push
+
+on:
+  push:
+    tags:
+      #- '*.*.*' # Dieser Trigger reagiert auf Tags, die mit 'v' beginnen, gefolgt von Versionsnummern (z.B. v1.0.0, v2.1.5)
+      - '*.*.*' # Dieser Trigger reagiert auf Tags, die wie Versionsnummern aussehen (z.B. v1.0.0, v2.1.5)
+
+env:
+  DOTNET_VERSION: '9.0.x' # Hier kannst du die gewünschte .NET SDK Version angeben
+  BUILD_CONFIGURATION: 'Release' # Oder 'Debug', je nachdem, was du bauen möchtest
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # Du könntest auch Windows oder macOS verwenden
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4 # Holt den Code aus deinem Repository
+      with:
+        fetch-depth: 0 # Wichtig, um den gesamten Git-Verlauf für git describe zu haben
+
+    - id: get_version
+      uses: battila7/get-version-action@v2
+
+    - run: echo ${{ steps.get_version.outputs.version }}
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    # - name: Restore Dependencies
+    #   run: dotnet restore
+
+    - name: Build .NET Application
+      run: dotnet build --configuration ${{ env.BUILD_CONFIGURATION }} /p:Version=${{ steps.get_version.outputs.version-without-v }} ./Toaster
+
+    # # Optional: Teste deine Anwendung
+    # - name: Run Tests
+    #   run: dotnet test --no-build --verbosity normal
+
+    # Optional: Veröffentliche deine Anwendung (z.B. für ein Deployment)
+    - name: Publish .NET Application
+      run: dotnet publish --configuration ${{ env.BUILD_CONFIGURATION }} -p:DebugType=None -p:DebugSymbols=false --no-build --output ./publish ./Toaster
+      # Hier könntest du weitere Schritte hinzufügen, um die veröffentlichten Artefakte zu speichern oder bereitzustellen.
+      # Zum Beispiel mit actions/upload-artifact@v4
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Toaster-${{ github.ref_name }} # Der Name des Artefakts, z.B. my-dotnet-app-v1.0.0
+        path: ./publish # Der Pfad zu den veröffentlichten Dateien

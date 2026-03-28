@@ -1,5 +1,16 @@
 # Toaster
 
+## Build
+
+Pushen eines Git-Tags startet den CI/CD-Build. Das Ergebnis wird in der Github-Pipeline als Archiv abgelegt.
+
+Die Versionsnummer wird automatisch aus dem Git-Tag erstellt. Dieser muss die Form `MAJOR.MINOR.PATCH haben`, also zB `1.1.3`. Der CI-Build wird dann so ausgelöst:
+
+```
+git tag 1.1.3
+git push --tags
+```
+
 ## Projekt erstellen
 
 ```
