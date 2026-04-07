@@ -155,9 +155,21 @@ internal sealed class TrayAppContext : ApplicationContext
                     //     _trayIcon.ShowBalloonTip(1500, "Verbunden",
                     //         $"{ServerHost}:{PortNumber}", ToolTipIcon.Info), null);
 
+                    // send version info to server
+                    String appVersion = Program.GetAppVersion();
+                    try
+                    {
+                        await writer.WriteLineAsync($"HELO from Toaster v{appVersion}").ConfigureAwait(false);
+                        Log($"Version info gesendet (v{appVersion})");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"Fehler beim Senden der Versionsinfo: {ex.Message}");
+                    }
+
                     string? line;
                     while (!token.IsCancellationRequested &&
-                           (line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)
+                        (line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)
                     {
                         Log($"Empfangen: {line}");
 
