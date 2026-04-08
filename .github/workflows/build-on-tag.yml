@@ -51,3 +51,25 @@ jobs:
       with:
         name: Toaster-${{ github.ref_name }} # Der Name des Artefakts, z.B. my-dotnet-app-v1.0.0
         path: ./publish # Der Pfad zu den veröffentlichten Dateien
+
+    - name: Create Release
+    # disabled for now
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Wichtig: Benutze den eingebauten GITHUB_TOKEN
+      with:
+        tag_name: ${{ github.ref }} # Verwendet den gepushten Tag (z.B. v1.0.0)
+        name: Release ${{ github.ref }}
+        body: |
+          # Release ${{ github.ref }}
+          
+          This is a new release of my awesome application!
+          
+          ## Changes:
+          * Feature A
+          * Bugfix B
+        draft: false # Setzt das Release direkt als veröffentlicht
+        prerelease: false # Ob es ein Pre-Release ist
+        files: |
+          ./publish
