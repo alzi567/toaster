@@ -72,4 +72,4 @@ jobs:
         draft: false # Setzt das Release direkt als veröffentlicht
         prerelease: false # Ob es ein Pre-Release ist
         files: |
-          ./publish
+          ./publish/Toaster-${{ github.ref_name }}
