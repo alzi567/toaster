@@ -65,6 +65,16 @@ internal sealed class TrayAppContext : ApplicationContext
     public static string AckText { get; set; } = "OK";
     private static StreamWriter? commandWriter;
 
+    // ==== Time-based Allow Commands ====
+    private static readonly (string Label, string Command)[] TimeAllowCommands = new[]
+    {
+        ("15 minutes", "cmd|allow|15m"),
+        ("30 minutes", "cmd|allow|30m"),
+        ("1 hour",     "cmd|allow|1h"),
+        ("90 minutes", "cmd|allow|90m"),
+        ("2 hours",    "cmd|allow|2h")
+    };
+
     public TrayAppContext()
     {
         _uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
@@ -100,11 +110,19 @@ internal sealed class TrayAppContext : ApplicationContext
 
         // 4. Add the item to your ContextMenuStrip's Items collection
         _trayIcon.ContextMenuStrip.Items.Add(versionText);
-        _trayIcon.ContextMenuStrip.Items.Add("Exit", null, (_, __) => ExitApplication());
 
-        var allow15MinutesItem = new ToolStripMenuItem("15 minutes");
-        allow15MinutesItem.Click += OnAllow15MinutesClicked;
-        _trayIcon.ContextMenuStrip.Items.Add(allow15MinutesItem);
+        // Add time-based allow commands
+        foreach (var (label, command) in TimeAllowCommands)
+        {
+            var item = new ToolStripMenuItem(label);
+            item.Tag = command;  // Store command in Tag for handler retrieval
+            item.Click += OnAllowCommandClicked;
+            _trayIcon.ContextMenuStrip.Items.Add(item);
+        }
+
+        // Add separator and exit
+        _trayIcon.ContextMenuStrip.Items.Add(new ToolStripSeparator());
+        _trayIcon.ContextMenuStrip.Items.Add("Exit", null, (_, __) => ExitApplication());
 
         // Optionaler Start-Hinweis
         // _trayIcon.ShowBalloonTip(2000, "Toaster Client", $"Verbinde zu {ServerHost}:{PortNumber}…", ToolTipIcon.Info);
@@ -278,8 +296,14 @@ internal sealed class TrayAppContext : ApplicationContext
         return null;
     }
 
-    private static async void OnAllow15MinutesClicked(object? sender, EventArgs e)
+    private static async void OnAllowCommandClicked(object? sender, EventArgs e)
     {
+        if (sender is not ToolStripMenuItem item || item.Tag is not string command)
+        {
+            Log("Fehler: Ungültiger Menu-Item oder Command.");
+            return;
+        }
+
         if (commandWriter == null)
         {
             Log("Fehler: Keine aktive Verbindung zum Server.");
@@ -288,9 +312,9 @@ internal sealed class TrayAppContext : ApplicationContext
 
         try
         {
-            await commandWriter.WriteLineAsync("cmd|allow|15m").ConfigureAwait(false);
+            await commandWriter.WriteLineAsync(command).ConfigureAwait(false);
             await commandWriter.FlushAsync().ConfigureAwait(false);
-            Log("Command gesendet: cmd|allow|15m");
+            Log($"Command gesendet: {command}");
         }
         catch (Exception ex)
         {
