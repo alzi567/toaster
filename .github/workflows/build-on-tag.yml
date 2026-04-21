@@ -55,21 +55,21 @@ jobs:
     - name: Create Release
     # disabled for now
       id: create_release
-      uses: softprops/action-gh-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Wichtig: Benutze den eingebauten GITHUB_TOKEN
+      uses: softprops/action-gh-release@v2
+      # env:
+      #   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Wichtig: Benutze den eingebauten GITHUB_TOKEN
       with:
-        tag_name: ${{ github.ref }} # Verwendet den gepushten Tag (z.B. v1.0.0)
-        name: Release ${{ github.ref }}
-        body: |
-          # Release ${{ github.ref }}
+        # tag_name: ${{ github.ref }} # Verwendet den gepushten Tag (z.B. v1.0.0)
+        # name: Release ${{ github.ref }}
+        # body: |
+        #   # Release ${{ github.ref }}
           
-          This is a new release of my awesome application!
+        #   This is a new release of my awesome application!
           
-          ## Changes:
-          * Feature A
-          * Bugfix B
-        draft: false # Setzt das Release direkt als veröffentlicht
-        prerelease: false # Ob es ein Pre-Release ist
+        #   ## Changes:
+        #   * Feature A
+        #   * Bugfix B
+        # draft: false # Setzt das Release direkt als veröffentlicht
+        # prerelease: false # Ob es ein Pre-Release ist
         files: |
           ./publish/Toaster.exe
