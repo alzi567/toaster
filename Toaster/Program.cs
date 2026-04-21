@@ -63,6 +63,7 @@ internal sealed class TrayAppContext : ApplicationContext
     public static int ReconnectDelayMs { get; set; } = 2000;
     public static bool SendAck { get; set; } = false;
     public static string AckText { get; set; } = "OK";
+    private static StreamWriter? commandWriter;
 
     public TrayAppContext()
     {
@@ -101,6 +102,10 @@ internal sealed class TrayAppContext : ApplicationContext
         _trayIcon.ContextMenuStrip.Items.Add(versionText);
         _trayIcon.ContextMenuStrip.Items.Add("Exit", null, (_, __) => ExitApplication());
 
+        var allow15MinutesItem = new ToolStripMenuItem("15 minutes");
+        allow15MinutesItem.Click += OnAllow15MinutesClicked;
+        _trayIcon.ContextMenuStrip.Items.Add(allow15MinutesItem);
+
         // Optionaler Start-Hinweis
         // _trayIcon.ShowBalloonTip(2000, "Toaster Client", $"Verbinde zu {ServerHost}:{PortNumber}…", ToolTipIcon.Info);
 
@@ -131,7 +136,7 @@ internal sealed class TrayAppContext : ApplicationContext
         File.AppendAllText(LogFile, line + Environment.NewLine, Encoding.UTF8);
     }
 
-    // ==== NEU: Client-Schleife ====
+    // Client-Schleife ====
     private async Task StartTcpClientLoopAsync(CancellationToken token)
     {
         while (!token.IsCancellationRequested)
@@ -150,6 +155,8 @@ internal sealed class TrayAppContext : ApplicationContext
                 using (var reader = new StreamReader(stream, Encoding.UTF8))
                 using (var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)) { AutoFlush = true })
                 {
+                    commandWriter = writer;
+
                     // Optional: kleinen Hinweis im Tray
                     // _uiContext.Post(_ =>
                     //     _trayIcon.ShowBalloonTip(1500, "Verbunden",
@@ -235,6 +242,7 @@ internal sealed class TrayAppContext : ApplicationContext
             }
             finally
             {
+                commandWriter = null;
                 try { client?.Close(); } catch { /* ignore */ }
             }
 
@@ -268,6 +276,26 @@ internal sealed class TrayAppContext : ApplicationContext
             return (number, parts[1], parts[2]);
         }
         return null;
+    }
+
+    private static async void OnAllow15MinutesClicked(object? sender, EventArgs e)
+    {
+        if (commandWriter == null)
+        {
+            Log("Fehler: Keine aktive Verbindung zum Server.");
+            return;
+        }
+
+        try
+        {
+            await commandWriter.WriteLineAsync("cmd|allow|15m").ConfigureAwait(false);
+            await commandWriter.FlushAsync().ConfigureAwait(false);
+            Log("Command gesendet: cmd|allow|15m");
+        }
+        catch (Exception ex)
+        {
+            Log($"Fehler beim Senden des Commands: {ex.Message}");
+        }
     }
 
     private async void ExitApplication()
