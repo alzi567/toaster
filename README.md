@@ -161,3 +161,18 @@ HELO from Toaster v1.2.1
 ```
 
 Thus, you can determine the version info from connected clients on the server side.
+
+## Menu items
+
+In the Toaster app, you can use the following context menu items:
+
+* 15 minutes
+* 30 minutes
+* 1 hour
+* 90 minutes
+* 2 hours
+* Exit
+
+The "minutes"/"hours" menu items would request access for the time specified. 
+
+The option "Exit" exits the application.
