@@ -68,11 +68,11 @@ internal sealed class TrayAppContext : ApplicationContext
     // ==== Time-based Allow Commands ====
     private static readonly (string Label, string Command)[] TimeAllowCommands = new[]
     {
-        ("15 minutes", "cmd|allow|15m"),
-        ("30 minutes", "cmd|allow|30m"),
-        ("1 hour",     "cmd|allow|1h"),
-        ("90 minutes", "cmd|allow|90m"),
-        ("2 hours",    "cmd|allow|2h")
+        ("15 minutes", "allow|15m"),
+        ("30 minutes", "allow|30m"),
+        ("1 hour",     "allow|1h"),
+        ("90 minutes", "allow|90m"),
+        ("2 hours",    "allow|2h")
     };
 
     public TrayAppContext()
