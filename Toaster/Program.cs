@@ -58,7 +58,7 @@ internal sealed class TrayAppContext : ApplicationContext
     private Task? _clientTask;
 
     // ==== Client-Konfiguration ====
-    public static string ServerHost { get; set; } = "10.10.10.1";
+    public static string ServerHost { get; set; } = Environment.GetEnvironmentVariable("TOASTER_SERVER_HOST") ?? "10.10.10.1";
     //public static string ServerHost { get; set; } = "127.0.0.1";
     public static int PortNumber { get; set; } = 56555;
     public static int ReconnectDelayMs { get; set; } = 2000;

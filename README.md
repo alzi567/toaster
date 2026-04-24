@@ -176,3 +176,14 @@ In the Toaster app, you can use the following context menu items:
 The "minutes"/"hours" menu items would request access for the time specified. 
 
 The option "Exit" exits the application.
+
+## Set server host
+
+The server to connect to, is hardcoded with `10.10.10.1`. However, you can override the server host by setting the environment variable `TOASTER_SERVER_HOST` to another IP address or host name.
+
+E.g. in Powershell:
+
+```powershell
+$env:TOASTER_SERVER_HOST="127.0.0.1"
+Toaster.exe
+```
