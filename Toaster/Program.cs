@@ -59,6 +59,7 @@ internal sealed class TrayAppContext : ApplicationContext
 
     // ==== Client-Konfiguration ====
     public static string ServerHost { get; set; } = "10.10.10.1";
+    //public static string ServerHost { get; set; } = "127.0.0.1";
     public static int PortNumber { get; set; } = 56555;
     public static int ReconnectDelayMs { get; set; } = 2000;
     public static bool SendAck { get; set; } = false;
@@ -122,6 +123,10 @@ internal sealed class TrayAppContext : ApplicationContext
 
         // Add separator and exit
         _trayIcon.ContextMenuStrip.Items.Add(new ToolStripSeparator());
+        _trayIcon.ContextMenuStrip.Items.Add("Status", null, (_, __) => OnStatusCommandClicked());
+
+        // Add separator and exit
+        _trayIcon.ContextMenuStrip.Items.Add(new ToolStripSeparator());
         _trayIcon.ContextMenuStrip.Items.Add("Exit", null, (_, __) => ExitApplication());
 
         // Optionaler Start-Hinweis
@@ -157,6 +162,8 @@ internal sealed class TrayAppContext : ApplicationContext
     // Client-Schleife ====
     private async Task StartTcpClientLoopAsync(CancellationToken token)
     {
+        Log("Toaster gestartet.");
+
         while (!token.IsCancellationRequested)
         {
             TcpClient? client = null;
@@ -184,7 +191,7 @@ internal sealed class TrayAppContext : ApplicationContext
                     String appVersion = Program.GetAppVersion();
                     try
                     {
-                        await writer.WriteLineAsync($"HELO from Toaster v{appVersion}").ConfigureAwait(false);
+                        await writer.WriteLineAsync($"helo|Toaster v{appVersion}").ConfigureAwait(false);
                         Log($"Version info gesendet (v{appVersion})");
                     }
                     catch (Exception ex)
@@ -231,7 +238,7 @@ internal sealed class TrayAppContext : ApplicationContext
                         }
                         else
                         {
-                            Log("Ungültige Zeile – kein 3-teiliger Pipe-String.");
+                            Log("Ungültige Zeile - kein 3-teiliger Pipe-String.");
                             _uiContext.Post(_ =>
                                 _trayIcon.ShowBalloonTip(
                                     1500, "Ungültige Nachricht",
@@ -322,9 +329,31 @@ internal sealed class TrayAppContext : ApplicationContext
         }
     }
 
+    private static async void OnStatusCommandClicked()
+    {
+        if (commandWriter == null)
+        {
+            Log("Fehler: Keine aktive Verbindung zum Server.");
+            return;
+        }
+
+        try
+        {
+            var command = "status";
+            await commandWriter.WriteLineAsync(command).ConfigureAwait(false);
+            await commandWriter.FlushAsync().ConfigureAwait(false);
+            Log($"Command gesendet: {command}");
+        }
+        catch (Exception ex)
+        {
+            Log($"Fehler beim Senden des Commands: {ex.Message}");
+        }
+    }
+
+
     private async void ExitApplication()
     {
-        Log("Toaster wird beendet.");
+        Log("Toaster wird durch User beendet.");
         try
         {
             _cts.Cancel();
