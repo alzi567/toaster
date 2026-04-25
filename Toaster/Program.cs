@@ -127,10 +127,13 @@ internal sealed class TrayAppContext : ApplicationContext
 
         // Add separator and exit
         _trayIcon.ContextMenuStrip.Items.Add(new ToolStripSeparator());
-        _trayIcon.ContextMenuStrip.Items.Add("Exit", null, (_, __) => ExitApplication());
+        _trayIcon.ContextMenuStrip.Items.Add("Exit", null, (_, __) => OnExitCommandClicked());
 
         // Optionaler Start-Hinweis
         // _trayIcon.ShowBalloonTip(2000, "Toaster Client", $"Verbinde zu {ServerHost}:{PortNumber}…", ToolTipIcon.Info);
+
+        // Handle application shutdown
+        Application.ApplicationExit += (_, __) => ExitApplication();
 
         // Starte den TCP-Client-Loop (nicht awaiten)
         _clientTask = StartTcpClientLoopAsync(_cts.Token);
@@ -350,11 +353,15 @@ internal sealed class TrayAppContext : ApplicationContext
         }
     }
 
+    private void OnExitCommandClicked()
+    {
+        Log("Toaster wird durch User beendet.");
+        this.ExitThread();
+    }
+
 
     private async void ExitApplication()
     {
-        Log("Toaster wird durch User beendet.");
-        
         // notify the server that we will disconnect
         if (commandWriter != null)
         {
@@ -387,7 +394,6 @@ internal sealed class TrayAppContext : ApplicationContext
         {
             _trayIcon.Visible = false;
             _trayIcon.Dispose();
-            ExitThread(); // closes the ApplicationContext -> Application.Run returns
         }
     }
 
