@@ -354,6 +354,23 @@ internal sealed class TrayAppContext : ApplicationContext
     private async void ExitApplication()
     {
         Log("Toaster wird durch User beendet.");
+        
+        // notify the server that we will disconnect
+        if (commandWriter != null)
+        {
+            try
+            {
+                var command = "bye";
+                await commandWriter.WriteLineAsync(command).ConfigureAwait(false);
+                await commandWriter.FlushAsync().ConfigureAwait(false);
+                Log($"Command gesendet: {command}");
+            }
+            catch (Exception ex)
+            {
+                Log($"Fehler beim Senden des Commands: {ex.Message}");
+            }
+        }
+
         try
         {
             _cts.Cancel();
