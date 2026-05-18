@@ -203,54 +203,66 @@ internal sealed class TrayAppContext : ApplicationContext
                     }
 
                     string? line;
-                    while (!token.IsCancellationRequested &&
-                        (line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)
+                    try
                     {
-                        Log($"Empfangen: {line}");
-
-                        var command = ParseInput(line);
-                        if (command.HasValue)
+                        while (!token.IsCancellationRequested &&
+                            (line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)
                         {
-                            var icon = command.Value.Icon switch
-                            {
-                                1 => ToolTipIcon.Info,
-                                2 => ToolTipIcon.Warning,
-                                3 => ToolTipIcon.Error,
-                                _ => ToolTipIcon.None
-                            };
+                            Log($"Empfangen: {line}");
 
-                            _uiContext.Post(_ =>
-                                _trayIcon.ShowBalloonTip(
-                                    5000,
-                                    command.Value.Title,
-                                    command.Value.Message,
-                                    icon), null);
-
-                            if (SendAck)
+                            var command = ParseInput(line);
+                            if (command.HasValue)
                             {
-                                try
+                                var icon = command.Value.Icon switch
                                 {
-                                    await writer.WriteLineAsync(AckText).ConfigureAwait(false);
-                                    Log($"ACK gesendet: {AckText}");
-                                }
-                                catch (Exception ex)
+                                    1 => ToolTipIcon.Info,
+                                    2 => ToolTipIcon.Warning,
+                                    3 => ToolTipIcon.Error,
+                                    _ => ToolTipIcon.None
+                                };
+
+                                _uiContext.Post(_ =>
+                                    _trayIcon.ShowBalloonTip(
+                                        5000,
+                                        command.Value.Title,
+                                        command.Value.Message,
+                                        icon), null);
+
+                                if (SendAck)
                                 {
-                                    Log($"Fehler beim ACK-Senden: {ex.Message}");
+                                    try
+                                    {
+                                        await writer.WriteLineAsync(AckText).ConfigureAwait(false);
+                                        Log($"ACK gesendet: {AckText}");
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Log($"Fehler beim ACK-Senden: {ex.Message}");
+                                    }
                                 }
                             }
+                            else
+                            {
+                                Log("Ungültige Zeile - kein 3-teiliger Pipe-String.");
+                                _uiContext.Post(_ =>
+                                    _trayIcon.ShowBalloonTip(
+                                        1500, "Ungültige Nachricht",
+                                        "Erwartet: ICON|TITLE|MESSAGE",
+                                        ToolTipIcon.Warning), null);
+                            }
                         }
-                        else
-                        {
-                            Log("Ungültige Zeile - kein 3-teiliger Pipe-String.");
-                            _uiContext.Post(_ =>
-                                _trayIcon.ShowBalloonTip(
-                                    1500, "Ungültige Nachricht",
-                                    "Erwartet: ICON|TITLE|MESSAGE",
-                                    ToolTipIcon.Warning), null);
-                        }
-                    }
 
-                    Log("Server hat die Verbindung geschlossen.");
+                        Log("Server hat die Verbindung geschlossen.");
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            await writer.WriteLineAsync("disconnect").ConfigureAwait(false);
+                            Log("disconnect gesendet.");
+                        }
+                        catch { /* Verbindung bereits getrennt – ignorieren */ }
+                    }
                     // _uiContext.Post(_ =>
                     //     _trayIcon.ShowBalloonTip(1500, "Getrennt",
                     //         "Server hat beendet oder Verbindung verloren.", ToolTipIcon.None), null);
@@ -368,6 +380,18 @@ internal sealed class TrayAppContext : ApplicationContext
             try
             {
                 var command = "bye";
+                await commandWriter.WriteLineAsync(command).ConfigureAwait(false);
+                await commandWriter.FlushAsync().ConfigureAwait(false);
+                Log($"Command gesendet: {command}");
+            }
+            catch (Exception ex)
+            {
+                Log($"Fehler beim Senden des Commands: {ex.Message}");
+            }
+
+            try
+            {
+                var command = "disconnect";
                 await commandWriter.WriteLineAsync(command).ConfigureAwait(false);
                 await commandWriter.FlushAsync().ConfigureAwait(false);
                 Log($"Command gesendet: {command}");
